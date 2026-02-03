@@ -1,0 +1,103 @@
+1/7 | Update T ime: 2026-01-21Unit UWB
+SKU:U100
+Unit UWB  是一款具备室内定位技术的无线通信 Unit。该设计采用 Ai-Think er BU01 模组方案 (基于 Decawav e 的 DW1000 设计的超宽带
+(UWB) 收发器模组 )。内置 STM32 并集成测距算法，定位精度可达 10 cm，支持 A T 指令控制。应用于室内无线测距时，以基站和标签方式进行
+工作 ( 基站把位置信息解算输出到标签 )。描述
+2/7 | Update T ime: 2026-01-21定位精度：10cm
+内置 STM32 集成测距算法
+AT 指令控制
+串口通信 (波特率：115200)
+集成简单，无需 RF 设计
+符合 IEEE 802.15.4-2011 UWB 标准
+支持双向测距和 TDO A
+开发平台: Ar duino，UiFlow (Blockly，Py thon)
+2 x LEGO 兼容孔
+1 x Unit UWB
+1 x HY2.0-4P Gr ove 连接线 (20cm)
+室内定位 / 无线测距产品特性
+包装内容
+应用场景
+规格参数
+3/7 | Update T ime: 2026-01-21规格 参数
+MCU STM32F103C8T6
+数据传输速率 110 kbit/s，850 kbit/s 和 6.8 Mbit/s
+频段 6 频段：从 3.5 GHz 至 6.5 GHz
+发射功率 -14 dBm/-10 dBm
+发射功率密度 <-41.3dBm / MHz
+支持数据包大小 1023 字节
+发射功率密度 <-41.3dBm / MHz
+调制方式 BPM (二相调制) 与 BPSK (二进制相位调制)
+FDMA 6 通道
+产品尺寸 48.0 x 24.0 x 8.0mm
+产品重量 8.2g
+包装尺寸 138.0 x 93.0 x 9.0mm
+毛重 13.5g
+操作说明
+注意事项
+该 Unit 目前所搭载的固件仅支持测距信息的传输，暂不支持自定义信息传输。使用时，支持配置 4 个基站设备 (使用不同 ID)，同一时刻
+仅允许单个标签设备接入运行。
+原理图
+4/7 | Update T ime: 2026-01-21
+ 
+管脚映射
+Unit UWB
+5/7 | Update T ime: 2026-01-21PORT.C GND 5V UART_RX UART_TX
+AT Command
+BU01-specification
+DW1000 Datasheet
+Unit UWB Example
+Unit UWB UiFlow1 文档HY2.0-4P Black Red Yellow Whit e
+数据手册
+尺寸图
+软件开发
+Arduino
+UiFlow1
+6/7 | Update T ime: 2026-01-21Unit UWB UiFlow2 文档
+设置类 A T 指令
+value
+命令说明：控制是否测距的开关，仅标签模式下有效
+响应:
+当 value 等于 0 时，关闭测距，返回 ok .
+当 value 等于 1 时，开启测距，返回 ok .
+value
+命令说明：设置测距间隔
+响应: OK
+AT+version?
+命令说明：获取厂商，模组系列和版本号
+响应: "AIT-BU01-DB V000 T2020-4-17 OK"
+AT+RST
+命令说明：复位模组
+响应: OK
+model,ID
+命令说明：设置设备的模式和 ID
+参数:
+Model 1 是选择 anchor 模式，0 是选择 tag 模式
+ID 设置基站和标签的 ID
+响应: OKUiFlow2
+通信协议
+注意：发送每一条命令的结尾需添加回车换行 **\r\n**
+AT+switchdis=
+AT+interval=
+注意:  
+范围是 5-50 米，设置的是获取多少次数据后开始输出距离，值越大刷新速度越慢；
+AT+anchor_tag=
+//基站模式 
+AT+anchor_tag=1,0
++anchor_tag=OK 
+AT+RST 
++RST=OK
+7/7 | Update T ime: 2026-01-21Easylo ader 下载链接 备注
+Unit UWB Example with M5Cor e downlo ad /
+UWB_VIDEO .mp4//标签模式 
+AT+RST 
++RST=OK 
+AT+anchor_tag=0 
++anchor_tag=OK 
+AT+interval=5 
++interval=OK 
+AT+switchdis=1 
++switchdis=OK 
+//返回测距结果  
+//....
+EasyLo ader
+相关视频
