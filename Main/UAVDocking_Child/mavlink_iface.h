@@ -16,5 +16,5 @@ void mavlinkSendHeartbeat();
 void mavlinkRequestIntervals();
 void mavlinkSendSetpointGlobalRelAlt(double lat, double lon, float relAlt);
 void mavlinkSendSetpointGlobalRelAltYaw(double lat, double lon, float relAlt, float yawRad);
-void mavlinkWriteRaw(const uint8_t *data, size_t len);
+void mavlinkSendRtcm(const uint8_t *data, size_t len);
 

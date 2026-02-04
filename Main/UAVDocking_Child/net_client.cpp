@@ -12,11 +12,18 @@ void netSetup() {
 
 void netEnsureConnected() {
   if (WiFi.status() == WL_CONNECTED) return;
+  Serial.println("WiFi connecting...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(AP_SSID, AP_PASS);
   uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED && (millis() - start) < 5000) {
     delay(200);
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("WiFi connected. IP=");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("WiFi connect timeout.");
   }
 }
 

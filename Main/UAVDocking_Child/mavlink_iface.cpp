@@ -86,9 +86,31 @@ void mavlinkSendSetpointGlobalRelAltYaw(double lat, double lon, float relAlt, fl
   sendMavlink(msg);
 }
 
-void mavlinkWriteRaw(const uint8_t *data, size_t len) {
+void mavlinkSendRtcm(const uint8_t *data, size_t len) {
   if (!data || len == 0) return;
-  FC.write(data, len);
+  static uint8_t seq = 0;
+  size_t offset = 0;
+  const size_t chunkSize = 180;
+  while (offset < len) {
+    size_t n = len - offset;
+    if (n > chunkSize) n = chunkSize;
+    uint8_t flags = (uint8_t)(seq & 0x1F);
+    if (len > chunkSize) {
+      uint8_t fragId = (uint8_t)((offset / chunkSize) & 0x07);
+      flags |= (uint8_t)(fragId << 5);
+    }
+    mavlink_message_t msg;
+    uint8_t payload[180] = {0};
+    memcpy(payload, data + offset, n);
+    mavlink_msg_gps_rtcm_data_pack(
+        SYS_ID, COMP_ID, &msg,
+        flags,
+        (uint8_t)n,
+        payload);
+    sendMavlink(msg);
+    offset += n;
+    seq++;
+  }
 }
 
 void mavlinkLoop() {

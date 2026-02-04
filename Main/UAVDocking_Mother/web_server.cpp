@@ -2,12 +2,18 @@
 
 #include <Arduino.h>
 #include <WebServer.h>
+#include <math.h>
 
 #include "commands.h"
 #include "config.h"
 #include "telemetry.h"
 
 static WebServer server(80);
+
+static float safeFloat(float v) {
+  if (isnan(v) || isinf(v)) return 0.0f;
+  return v;
+}
 
 static void handleRoot() {
   const char *page =
@@ -21,6 +27,7 @@ static void handleRoot() {
       "<div>"
       "<button onclick=\"cmd('/api/mother/arm')\">Mother ARM</button>"
       "<button onclick=\"cmd('/api/mother/disarm')\">Mother DISARM</button>"
+      "<button onclick=\"cmd('/api/mother/offboard')\">Offboard</button>"
       "<button onclick=\"cmd('/api/mother/rtl')\">Mother RTL (Land)</button>"
       "</div>"
       "<div>"
@@ -41,7 +48,7 @@ static void handleRoot() {
       "<table><tr><th></th><th>Lat</th><th>Lon</th><th>Alt</th><th>RelAlt</th>"
       "<th>Vx</th><th>Vy</th><th>Vz</th><th>Ax</th><th>Ay</th><th>Az</th>"
       "<th>Vel</th><th>CoG</th><th>Heading</th><th>Airspeed</th><th>GndSpd</th><th>Climb</th>"
-      "<th>GPS</th><th>Sats</th><th>EPH</th><th>EPV</th>"
+      "<th>GPS</th><th>Sats</th><th>EPH</th><th>EPV</th><th>Diff</th>"
       "<th>GPS2</th><th>GPS2 Sats</th><th>EPH2</th><th>EPV2</th>"
       "<th>Bat(V)</th><th>Bat(A)</th><th>Bat(%)</th><th>IMU T</th><th>Age(ms)</th></tr>"
       "<tr><th>Mother</th>"
@@ -50,7 +57,7 @@ static void handleRoot() {
       "<td id='m_ax'></td><td id='m_ay'></td><td id='m_az'></td>"
       "<td id='m_vel'></td><td id='m_cog'></td><td id='m_heading'></td>"
       "<td id='m_air'></td><td id='m_gnd'></td><td id='m_climb'></td>"
-      "<td id='m_fix'></td><td id='m_sats'></td><td id='m_eph'></td><td id='m_epv'></td>"
+      "<td id='m_fix'></td><td id='m_sats'></td><td id='m_eph'></td><td id='m_epv'></td><td id='m_diff'></td>"
       "<td id='m_gps2fix'></td><td id='m_gps2sats'></td><td id='m_eph2'></td><td id='m_epv2'></td>"
       "<td id='m_bv'></td><td id='m_ba'></td><td id='m_bp'></td><td id='m_temp'></td><td id='m_age'></td>"
       "</tr>"
@@ -60,7 +67,7 @@ static void handleRoot() {
       "<td id='c_ax'></td><td id='c_ay'></td><td id='c_az'></td>"
       "<td id='c_vel'></td><td id='c_cog'></td><td id='c_heading'></td>"
       "<td id='c_air'></td><td id='c_gnd'></td><td id='c_climb'></td>"
-      "<td id='c_fix'></td><td id='c_sats'></td><td id='c_eph'></td><td id='c_epv'></td>"
+      "<td id='c_fix'></td><td id='c_sats'></td><td id='c_eph'></td><td id='c_epv'></td><td id='c_diff'></td>"
       "<td id='c_gps2fix'></td><td id='c_gps2sats'></td><td id='c_eph2'></td><td id='c_epv2'></td>"
       "<td id='c_bv'></td><td id='c_ba'></td><td id='c_bp'></td><td id='c_temp'></td><td id='c_age'></td>"
       "</tr></table>"
@@ -71,13 +78,13 @@ static void handleRoot() {
       "q('m_lat',m.lat);q('m_lon',m.lon);q('m_alt',m.alt);q('m_rel',m.rel);"
       "q('m_vx',m.vx);q('m_vy',m.vy);q('m_vz',m.vz);q('m_ax',m.ax);q('m_ay',m.ay);q('m_az',m.az);"
       "q('m_vel',m.vel);q('m_cog',m.cog);q('m_heading',m.heading);q('m_air',m.air);q('m_gnd',m.gnd);q('m_climb',m.climb);"
-      "q('m_fix',m.fix);q('m_sats',m.sats);q('m_eph',m.eph);q('m_epv',m.epv);"
+      "q('m_fix',m.fix);q('m_sats',m.sats);q('m_eph',m.eph);q('m_epv',m.epv);q('m_diff',m.diff);"
       "q('m_gps2fix',m.gps2fix);q('m_gps2sats',m.gps2sats);q('m_eph2',m.eph2);q('m_epv2',m.epv2);"
       "q('m_bv',m.bv);q('m_ba',m.ba);q('m_bp',m.bp);q('m_temp',m.temp);q('m_age',m.age);"
       "q('c_lat',c.lat);q('c_lon',c.lon);q('c_alt',c.alt);q('c_rel',c.rel);"
       "q('c_vx',c.vx);q('c_vy',c.vy);q('c_vz',c.vz);q('c_ax',c.ax);q('c_ay',c.ay);q('c_az',c.az);"
       "q('c_vel',c.vel);q('c_cog',c.cog);q('c_heading',c.heading);q('c_air',c.air);q('c_gnd',c.gnd);q('c_climb',c.climb);"
-      "q('c_fix',c.fix);q('c_sats',c.sats);q('c_eph',c.eph);q('c_epv',c.epv);"
+      "q('c_fix',c.fix);q('c_sats',c.sats);q('c_eph',c.eph);q('c_epv',c.epv);q('c_diff',c.diff);"
       "q('c_gps2fix',c.gps2fix);q('c_gps2sats',c.gps2sats);q('c_eph2',c.eph2);q('c_epv2',c.epv2);"
       "q('c_bv',c.bv);q('c_ba',c.ba);q('c_bp',c.bp);q('c_temp',c.temp);q('c_age',c.age);"
       "});}"
@@ -92,63 +99,65 @@ static void handleStatus() {
   json += "\"mother\":{";
   json += "\"lat\":" + String(mother.lat, 7) + ",";
   json += "\"lon\":" + String(mother.lon, 7) + ",";
-  json += "\"alt\":" + String(mother.altAmsl, 2) + ",";
-  json += "\"rel\":" + String(mother.relAlt, 2) + ",";
-  json += "\"vx\":" + String(mother.vx, 2) + ",";
-  json += "\"vy\":" + String(mother.vy, 2) + ",";
-  json += "\"vz\":" + String(mother.vz, 2) + ",";
-  json += "\"ax\":" + String(mother.ax, 2) + ",";
-  json += "\"ay\":" + String(mother.ay, 2) + ",";
-  json += "\"az\":" + String(mother.az, 2) + ",";
-  json += "\"vel\":" + String(mother.vel, 2) + ",";
-  json += "\"cog\":" + String(mother.cog, 1) + ",";
+  json += "\"alt\":" + String(safeFloat(mother.altAmsl), 2) + ",";
+  json += "\"rel\":" + String(safeFloat(mother.relAlt), 2) + ",";
+  json += "\"vx\":" + String(safeFloat(mother.vx), 2) + ",";
+  json += "\"vy\":" + String(safeFloat(mother.vy), 2) + ",";
+  json += "\"vz\":" + String(safeFloat(mother.vz), 2) + ",";
+  json += "\"ax\":" + String(safeFloat(mother.ax), 2) + ",";
+  json += "\"ay\":" + String(safeFloat(mother.ay), 2) + ",";
+  json += "\"az\":" + String(safeFloat(mother.az), 2) + ",";
+  json += "\"vel\":" + String(safeFloat(mother.vel), 2) + ",";
+  json += "\"cog\":" + String(safeFloat(mother.cog), 1) + ",";
   json += "\"heading\":" + String(mother.heading) + ",";
-  json += "\"air\":" + String(mother.airspeed, 2) + ",";
-  json += "\"gnd\":" + String(mother.groundspeed, 2) + ",";
-  json += "\"climb\":" + String(mother.climb, 2) + ",";
+  json += "\"air\":" + String(safeFloat(mother.airspeed), 2) + ",";
+  json += "\"gnd\":" + String(safeFloat(mother.groundspeed), 2) + ",";
+  json += "\"climb\":" + String(safeFloat(mother.climb), 2) + ",";
   json += "\"fix\":\"" + String(fixTypeName(mother.fixType)) + "\",";
   json += "\"sats\":" + String(mother.sats) + ",";
-  json += "\"eph\":" + String(mother.eph, 2) + ",";
-  json += "\"epv\":" + String(mother.epv, 2) + ",";
+  json += "\"eph\":" + String(safeFloat(mother.eph), 2) + ",";
+  json += "\"epv\":" + String(safeFloat(mother.epv), 2) + ",";
+  json += "\"diff\":" + String(mother.fixType >= 4 ? 1 : 0) + ",";
   json += "\"gps2fix\":\"" + String(fixTypeName(mother.gps2Fix)) + "\",";
   json += "\"gps2sats\":" + String(mother.gps2Sats) + ",";
-  json += "\"eph2\":" + String(mother.gps2Eph, 2) + ",";
-  json += "\"epv2\":" + String(mother.gps2Epv, 2) + ",";
-  json += "\"bv\":" + String(mother.battVolt, 2) + ",";
-  json += "\"ba\":" + String(mother.battCurrent, 2) + ",";
+  json += "\"eph2\":" + String(safeFloat(mother.gps2Eph), 2) + ",";
+  json += "\"epv2\":" + String(safeFloat(mother.gps2Epv), 2) + ",";
+  json += "\"bv\":" + String(safeFloat(mother.battVolt), 2) + ",";
+  json += "\"ba\":" + String(safeFloat(mother.battCurrent), 2) + ",";
   json += "\"bp\":" + String(mother.battRemaining) + ",";
-  json += "\"temp\":" + String(mother.imuTemp, 2) + ",";
+  json += "\"temp\":" + String(safeFloat(mother.imuTemp), 2) + ",";
   json += "\"age\":" + String(telemetryAgeMs(mother));
   json += "},";
   json += "\"child\":{";
   json += "\"lat\":" + String(child.lat, 7) + ",";
   json += "\"lon\":" + String(child.lon, 7) + ",";
-  json += "\"alt\":" + String(child.altAmsl, 2) + ",";
-  json += "\"rel\":" + String(child.relAlt, 2) + ",";
-  json += "\"vx\":" + String(child.vx, 2) + ",";
-  json += "\"vy\":" + String(child.vy, 2) + ",";
-  json += "\"vz\":" + String(child.vz, 2) + ",";
-  json += "\"ax\":" + String(child.ax, 2) + ",";
-  json += "\"ay\":" + String(child.ay, 2) + ",";
-  json += "\"az\":" + String(child.az, 2) + ",";
-  json += "\"vel\":" + String(child.vel, 2) + ",";
-  json += "\"cog\":" + String(child.cog, 1) + ",";
+  json += "\"alt\":" + String(safeFloat(child.altAmsl), 2) + ",";
+  json += "\"rel\":" + String(safeFloat(child.relAlt), 2) + ",";
+  json += "\"vx\":" + String(safeFloat(child.vx), 2) + ",";
+  json += "\"vy\":" + String(safeFloat(child.vy), 2) + ",";
+  json += "\"vz\":" + String(safeFloat(child.vz), 2) + ",";
+  json += "\"ax\":" + String(safeFloat(child.ax), 2) + ",";
+  json += "\"ay\":" + String(safeFloat(child.ay), 2) + ",";
+  json += "\"az\":" + String(safeFloat(child.az), 2) + ",";
+  json += "\"vel\":" + String(safeFloat(child.vel), 2) + ",";
+  json += "\"cog\":" + String(safeFloat(child.cog), 1) + ",";
   json += "\"heading\":" + String(child.heading) + ",";
-  json += "\"air\":" + String(child.airspeed, 2) + ",";
-  json += "\"gnd\":" + String(child.groundspeed, 2) + ",";
-  json += "\"climb\":" + String(child.climb, 2) + ",";
+  json += "\"air\":" + String(safeFloat(child.airspeed), 2) + ",";
+  json += "\"gnd\":" + String(safeFloat(child.groundspeed), 2) + ",";
+  json += "\"climb\":" + String(safeFloat(child.climb), 2) + ",";
   json += "\"fix\":\"" + String(fixTypeName(child.fixType)) + "\",";
   json += "\"sats\":" + String(child.sats) + ",";
-  json += "\"eph\":" + String(child.eph, 2) + ",";
-  json += "\"epv\":" + String(child.epv, 2) + ",";
+  json += "\"eph\":" + String(safeFloat(child.eph), 2) + ",";
+  json += "\"epv\":" + String(safeFloat(child.epv), 2) + ",";
+  json += "\"diff\":" + String(child.fixType >= 4 ? 1 : 0) + ",";
   json += "\"gps2fix\":\"" + String(fixTypeName(child.gps2Fix)) + "\",";
   json += "\"gps2sats\":" + String(child.gps2Sats) + ",";
-  json += "\"eph2\":" + String(child.gps2Eph, 2) + ",";
-  json += "\"epv2\":" + String(child.gps2Epv, 2) + ",";
-  json += "\"bv\":" + String(child.battVolt, 2) + ",";
-  json += "\"ba\":" + String(child.battCurrent, 2) + ",";
+  json += "\"eph2\":" + String(safeFloat(child.gps2Eph), 2) + ",";
+  json += "\"epv2\":" + String(safeFloat(child.gps2Epv), 2) + ",";
+  json += "\"bv\":" + String(safeFloat(child.battVolt), 2) + ",";
+  json += "\"ba\":" + String(safeFloat(child.battCurrent), 2) + ",";
   json += "\"bp\":" + String(child.battRemaining) + ",";
-  json += "\"temp\":" + String(child.imuTemp, 2) + ",";
+  json += "\"temp\":" + String(safeFloat(child.imuTemp), 2) + ",";
   json += "\"age\":" + String(telemetryAgeMs(child));
   json += "}";
   json += "}";
@@ -172,6 +181,11 @@ static void handleMotherArm() {
 
 static void handleMotherDisarm() {
   cmdMotherArm(false);
+  server.send(200, "text/plain", "OK");
+}
+
+static void handleMotherOffboard() {
+  cmdMotherOffboard();
   server.send(200, "text/plain", "OK");
 }
 
@@ -254,6 +268,7 @@ void webSetup() {
   server.on("/api/status", handleStatus);
   server.on("/api/mother/arm", handleMotherArm);
   server.on("/api/mother/disarm", handleMotherDisarm);
+  server.on("/api/mother/offboard", handleMotherOffboard);
   server.on("/api/mother/rtl", handleMotherRtl);
   server.on("/api/mother/hover1", handleMotherHover1);
   server.on("/api/mother/hover2", handleMotherHover2);

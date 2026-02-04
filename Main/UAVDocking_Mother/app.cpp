@@ -14,6 +14,10 @@ static uint32_t lastHeartbeat = 0;
 static uint32_t lastSetpoint = 0;
 static WiFiUDP rtkUdp;
 static bool rtkUdpReady = false;
+static bool holdInit = false;
+static double holdLat = 0;
+static double holdLon = 0;
+static float holdRelAlt = 0;
 
 static bool motherTargetActive = false;
 static double motherTargetLat = 0;
@@ -36,10 +40,24 @@ void cmdMotherHover(float relAlt) {
   motherTargetLon = mother.lon;
   motherTargetRelAlt = relAlt;
   motherTargetActive = true;
+  mavlinkSendStatusText(relAlt >= 1.5f ? "Mother Hover 2m" : "Mother Hover 1m");
 }
 
 void cmdMotherArm(bool arm) {
   mavlinkSendArmDisarm(arm);
+  motherTargetActive = false;
+  if (mother.valid) {
+    holdLat = mother.lat;
+    holdLon = mother.lon;
+    holdRelAlt = mother.relAlt;
+    holdInit = true;
+  }
+  mavlinkSendStatusText(arm ? "Mother ARM" : "Mother DISARM");
+}
+
+void cmdMotherOffboard() {
+  mavlinkSendOffboardMode();
+  mavlinkSendStatusText("Offboard requested");
 }
 
 void cmdMotherRtl() {
@@ -48,14 +66,7 @@ void cmdMotherRtl() {
   motherTargetLon = mother.lon;
   motherTargetRelAlt = 0.0f;
   motherTargetActive = true;
-}
-
-static void sendChildGoto(double lat, double lon, float relAlt) {
-  childTargetLat = lat;
-  childTargetLon = lon;
-  childTargetRelAlt = relAlt;
-  childCmdMode = "goto";
-  childCmdSeq++;
+  mavlinkSendStatusText("Mother RTL");
 }
 
 static void sendChildDock(double lat, double lon, float relAlt) {
@@ -76,6 +87,7 @@ void cmdChildDock() {
   const double lon = mother.lon + dLon;
   const float relAlt = 3.0f + childAltOffset;
   sendChildDock(lat, lon, relAlt);
+  mavlinkSendStatusText("Child Dock");
 }
 
 void cmdChildRtl() {
@@ -119,6 +131,10 @@ void appSetup() {
 
   webSetup();
   mavlinkRequestIntervals();
+
+  Serial.println("UAVDocking Mother boot");
+  Serial.print("AP IP: ");
+  Serial.println(WiFi.softAPIP());
 }
 
 void appLoop() {
@@ -131,21 +147,49 @@ void appLoop() {
 
   mavlinkLoop();
 
+  if (!holdInit && mother.valid) {
+    holdLat = mother.lat;
+    holdLon = mother.lon;
+    holdRelAlt = mother.relAlt;
+    holdInit = true;
+  }
+
   if (rtkUdpReady) {
     int packetSize = rtkUdp.parsePacket();
     while (packetSize > 0) {
       uint8_t buf[512];
       int len = rtkUdp.read(buf, sizeof(buf));
       if (len > 0) {
-        mavlinkWriteRaw(buf, (size_t)len);
+        mavlinkSendRtcm(buf, (size_t)len);
       }
       packetSize = rtkUdp.parsePacket();
     }
   }
 
-  if (motherTargetActive && mother.valid && (millis() - lastSetpoint > 200)) {
+  if (mother.valid && (millis() - lastSetpoint > 200)) {
     lastSetpoint = millis();
-    mavlinkSendSetpointGlobalRelAlt(motherTargetLat, motherTargetLon, motherTargetRelAlt);
+    if (motherTargetActive) {
+      mavlinkSendSetpointGlobalRelAlt(motherTargetLat, motherTargetLon, motherTargetRelAlt);
+    } else if (holdInit) {
+      mavlinkSendSetpointGlobalRelAlt(holdLat, holdLon, holdRelAlt);
+    }
+  }
+
+  static uint32_t lastLog = 0;
+  if (millis() - lastLog > 1000) {
+    lastLog = millis();
+    Serial.print("GPS fix=");
+    Serial.print(mother.fixType);
+    Serial.print(" sats=");
+    Serial.print(mother.sats);
+    Serial.print(" lat=");
+    Serial.print(mother.lat, 7);
+    Serial.print(" lon=");
+    Serial.print(mother.lon, 7);
+    Serial.print(" relAlt=");
+    Serial.print(mother.relAlt, 2);
+    Serial.print(" heading=");
+    Serial.println(mother.heading);
   }
 }
 

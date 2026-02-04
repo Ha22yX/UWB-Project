@@ -4,6 +4,7 @@
 
 void cmdMotherHover(float relAlt);
 void cmdMotherArm(bool arm);
+void cmdMotherOffboard();
 void cmdMotherRtl();
 void cmdChildDock();
 void cmdChildRtl();

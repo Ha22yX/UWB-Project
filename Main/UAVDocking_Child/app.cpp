@@ -52,6 +52,8 @@ void appSetup() {
   mavlinkSetup();
   netSetup();
   mavlinkRequestIntervals();
+
+  Serial.println("UAVDocking Child boot");
 }
 
 void appLoop() {
@@ -124,7 +126,7 @@ void appLoop() {
       uint8_t buf[512];
       int len = rtkUdp.read(buf, sizeof(buf));
       if (len > 0) {
-        mavlinkWriteRaw(buf, (size_t)len);
+        mavlinkSendRtcm(buf, (size_t)len);
       }
       packetSize = rtkUdp.parsePacket();
     }
@@ -200,6 +202,23 @@ void appLoop() {
     } else {
       mavlinkSendSetpointGlobalRelAlt(targetLat, targetLon, targetRelAlt);
     }
+  }
+
+  static uint32_t lastLog = 0;
+  if (millis() - lastLog > 1000) {
+    lastLog = millis();
+    Serial.print("GPS fix=");
+    Serial.print(self.fixType);
+    Serial.print(" sats=");
+    Serial.print(self.sats);
+    Serial.print(" lat=");
+    Serial.print(self.lat, 7);
+    Serial.print(" lon=");
+    Serial.print(self.lon, 7);
+    Serial.print(" relAlt=");
+    Serial.print(self.relAlt, 2);
+    Serial.print(" heading=");
+    Serial.println((int)(self.yawRad * 57.2958f));
   }
 }
 

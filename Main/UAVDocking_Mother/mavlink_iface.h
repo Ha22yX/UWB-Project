@@ -17,5 +17,7 @@ void mavlinkRequestIntervals();
 void mavlinkSendSetpointGlobalRelAlt(double lat, double lon, float relAlt);
 void mavlinkSendSetpointGlobalRelAltYaw(double lat, double lon, float relAlt, float yawRad);
 void mavlinkSendArmDisarm(bool arm);
-void mavlinkWriteRaw(const uint8_t *data, size_t len);
+void mavlinkSendOffboardMode();
+void mavlinkSendStatusText(const char *text, uint8_t severity = MAV_SEVERITY_INFO);
+void mavlinkSendRtcm(const uint8_t *data, size_t len);
 
