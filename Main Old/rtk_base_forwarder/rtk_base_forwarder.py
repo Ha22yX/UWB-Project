@@ -101,10 +101,6 @@ def ubx_message(cls_id: int, msg_id: int, payload: bytes) -> bytes:
     return header + payload + ck
 
 
-def ubx_poll(cls_id: int, msg_id: int) -> bytes:
-    return ubx_message(cls_id, msg_id, b"")
-
-
 def cfg_msg_rtcm(msg_num: int, rate_usb: int) -> bytes:
     msg_class = 0xF5
     # u-blox CFG-MSG uses RTCM message number modulo 1000 for msg_id
@@ -160,51 +156,11 @@ def cfg_tmode3_survey_in(min_dur_s: int, acc_limit_mm: int) -> bytes:
     return ubx_message(0x06, 0x71, payload)
 
 
-def parse_ubx_stream(data: bytes, buf: bytearray, status: dict):
-    buf.extend(data)
-    while True:
-        if len(buf) < 8:
-            return
-        # Find sync chars
-        if not (buf[0] == 0xB5 and buf[1] == 0x62):
-            idx = buf.find(b"\xB5\x62")
-            if idx == -1:
-                buf.clear()
-                return
-            del buf[:idx]
-            if len(buf) < 8:
-                return
-        cls_id = buf[2]
-        msg_id = buf[3]
-        length = buf[4] | (buf[5] << 8)
-        frame_len = 6 + length + 2
-        if len(buf) < frame_len:
-            return
-        payload = buf[6:6 + length]
-        # Verify checksum
-        ck = ubx_checksum(bytes([cls_id, msg_id, buf[4], buf[5]]) + payload)
-        if ck[0] == buf[6 + length] and ck[1] == buf[6 + length + 1]:
-            if cls_id == 0x06 and msg_id == 0x71 and length >= 40:
-                # CFG-TMODE3
-                mode = payload[2]
-                status["tmode3_mode"] = mode
-            elif cls_id == 0x01 and msg_id == 0x3B and length >= 40:
-                # NAV-SVIN
-                valid = payload[36]
-                mean_acc = int.from_bytes(payload[28:32], "little", signed=False)
-                status["svin_valid"] = valid
-                status["svin_mean_acc_mm"] = mean_acc
-        del buf[:frame_len]
-
-
 def try_start_survey_in(ser: serial.Serial):
     if not ENABLE_SURVEY_IN:
         return
     msg = cfg_tmode3_survey_in(SVIN_MIN_DURATION_S, SVIN_ACC_LIMIT_MM)
     ser.write(msg)
-    ser.flush()
-    # Poll current TMODE3 config after enabling
-    ser.write(ubx_poll(0x06, 0x71))
     ser.flush()
 
 
@@ -282,10 +238,7 @@ def main():
     last_total = 0
     last_log = time.time()
     rtcm_buf = bytearray()
-    ubx_buf = bytearray()
     stats = {"types": {}, "total_msgs": 0, "rtcm_preamble": 0, "nmea": 0, "ubx": 0}
-    base_status = {"tmode3_mode": None, "svin_valid": None, "svin_mean_acc_mm": None}
-    last_ubx_poll = 0.0
     while True:
         data = ser.read(1024)
         if not data:
@@ -296,19 +249,12 @@ def main():
             stats["nmea"] += data.count(b"$")
         if b"\xB5\x62" in data:
             stats["ubx"] += data.count(b"\xB5\x62")
-        parse_ubx_stream(data, ubx_buf, base_status)
         parse_rtcm_stream(data, rtcm_buf, stats)
         for host, port in TARGETS:
             sock.sendto(data, (host, port))
         if USE_BROADCAST:
             sock.sendto(data, BROADCAST_TARGET)
         now = time.time()
-        if now - last_ubx_poll > 2.0:
-            # Poll TMODE3 and Survey-In status
-            ser.write(ubx_poll(0x06, 0x71))
-            ser.write(ubx_poll(0x01, 0x3B))
-            ser.flush()
-            last_ubx_poll = now
         if now - last_log > 2.0:
             delta = total - last_total
             last_total = total
@@ -320,20 +266,6 @@ def main():
                 f"RTCM msgs: {stats['total_msgs']}  types: {top_str}  "
                 f"rtcm_preamble: {stats['rtcm_preamble']}  nmea: {stats['nmea']}  ubx: {stats['ubx']}"
             )
-            mode = base_status["tmode3_mode"]
-            if mode is None:
-                mode_str = "Unknown"
-            elif mode == 1:
-                mode_str = "Survey-In"
-            elif mode == 2:
-                mode_str = "Fixed"
-            else:
-                mode_str = f"Mode{mode}"
-            svin_valid = base_status["svin_valid"]
-            svin_valid_str = "Unknown" if svin_valid is None else ("TRUE" if svin_valid == 1 else "FALSE")
-            mean_acc = base_status["svin_mean_acc_mm"]
-            mean_acc_str = "Unknown" if mean_acc is None else f"{mean_acc / 1000.0:.3f} m"
-            print(f"Base TMODE3: {mode_str}  Survey-In Valid: {svin_valid_str}  Mean Accuracy: {mean_acc_str}")
             last_log = now
 
 
