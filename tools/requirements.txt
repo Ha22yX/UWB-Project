@@ -1,0 +1,5 @@
+matplotlib
+numpy
+pyqtgraph
+pyserial
+PyQt6
