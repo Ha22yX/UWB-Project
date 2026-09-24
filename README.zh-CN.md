@@ -34,14 +34,31 @@
 
 这个仓库负责 Mother-Ship Docking Drone System 中的中距离相对定位层。GPS/RTK 可以让子无人机接近母机平台，但真正对接时需要母机坐标系下的局部位置估计。
 
-本仓库的重点是把 UWB 锚点到标签的距离转换成可观察的 `x, y, z` 估计，并为 Pixhawk/MAVLink 和主对接系统预留集成路径。
+本仓库的重点是把 UWB 锚点到标签的距离转换成可观察的 `x, y, z` 估计。UWB 模块本身保留在这里，把定位结果接入飞控的程序放在主项目中。
+
+## 无人机固件已迁入主项目
+
+开发 UWB 模块时，我把一些母机和子机控制程序也放进了这个仓库。现在将这些文件整理到了 [Mother-Ship-Docking-Drone-System](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System)，方便在主项目中一起查找整机实验。
+
+| 在本仓库中的原位置 | 在主项目中的新位置 |
+| --- | --- |
+| `firmware/docking/` | [母机/子机 ESP-NOW 固件](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/tree/main/firmware/docking) |
+| `firmware/pixhawk/` | [Pixhawk 通信与控制实验](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/tree/main/firmware/pixhawk) |
+| `firmware/openmv/` | [ESP32 端 OpenMV 接入实验](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/tree/main/firmware/openmv) |
+| `firmware/uwb/uwb_follow_pixhawk/` | [UWB 接入 Pixhawk 的跟随实验](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/tree/main/firmware/integration/uwb_follow_pixhawk) |
+| `archive/old-main/` | [早期整机原型](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/tree/main/archive/old-main) |
+| `tools/debug/sik_debug.py` | [SiK 数传调试工具](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/blob/main/tools/debug/sik_debug.py) |
+| `tools/visualization/world_camera.py` | [AprilTag 位姿查看器](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/blob/main/tools/visualization/world_camera.py) |
+| `docs/reference/px4_mavlink_docs.md` | [PX4 / MAVLink 参考资料](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/blob/main/docs/reference/px4_mavlink_docs.md) |
+
+[迁移说明](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/blob/main/docs/repository-layout.md)记录了原始提交和迁移的 55 个文件。UWB 测距、锚点/标签固件、独立位置解算、UWB 可视化、接线说明和模块资料仍保留在这里。迁移保留了代码原始内容。
 
 ## 核心能力
 
-- ESP32-S3 Arduino 草图，覆盖 UWB 测距、ESP-NOW 和 Pixhawk 通信实验。
+- ESP32-S3 Arduino 草图，覆盖 UWB 锚点/标签通信和测距。
 - 面向母机对接框架的四锚点相对定位几何。
 - 通过三边定位/最小二乘把距离转换成局部位置。
-- Python 串口工具和 3D 可视化工具，用于检查距离和位姿流。
+- Python 串口查看器，用于检查 UWB 距离和位置数据。
 - 作为主对接项目的 UWB 附属模块，与 OpenMV AprilTag 视觉模块互补。
 
 ## 工作方式
@@ -54,45 +71,43 @@
 
 ## 快速开始
 
-克隆仓库，安装 PC 可视化依赖，然后用 Arduino IDE 或 ESP32 工具链烧录 `firmware/` 中的固件。
+克隆仓库，安装 PC 可视化依赖，然后在 `firmware/uwb/` 中选择需要的草图，用 Arduino IDE 或 ESP32 工具链打开。
 
 ```bash
 git clone https://github.com/Ha22yX/UWB-Project.git
 cd UWB-Project
 pip install -r tools/requirements.txt
-# 在 Arduino IDE 中烧录 firmware/ 下的 ESP32-S3 草图
+# 在 Arduino IDE 中打开 firmware/uwb/ 下与目录同名的 .ino
 python tools/visualization/uwb_viewer.py
 ```
 
-运行前请根据实际硬件修改串口、UWB ID、锚点坐标和波特率。
+运行前请根据实际硬件修改串口、UWB ID、锚点坐标和波特率。`uwb_viewer.py` 还需要 Python 环境支持 Tkinter。涉及飞控的草图请查看[主项目固件说明](https://github.com/Ha22yX/Mother-Ship-Docking-Drone-System/blob/main/firmware/README.md)。
 
 ## 配置项
 
 | 项目 | 需要调整的内容 |
 | --- | --- |
 | 锚点几何 | 测量母机对接框上的锚点位置，并保持单位一致。 |
-| 串口 | 设置 ESP32-S3、UWB、Pixhawk 对应的串口。 |
+| 串口 | 设置查看器使用的 ESP32-S3 / UWB 串口和波特率。 |
 | UWB ID | 让固件中的锚点/标签 ID 与物理模块一致。 |
-| 飞控链路 | MAVLink/Pixhawk 脚本属于台架实验，实飞前必须单独验证。 |
 
 ## 技术栈
 
 | 层级 | 技术 | 作用 |
 | --- | --- | --- |
-| 固件 | Arduino, ESP32-S3 | UWB、ESP-NOW 和 Pixhawk 实验。 |
+| 固件 | Arduino, ESP32-S3 | UWB 锚点/标签与测距实验。 |
 | 定位 | UWB 三边定位 | 把距离转换成母机坐标系下的相对位置。 |
-| 可视化 | pyserial, matplotlib, PyQtGraph | 检查串口数据和位姿流。 |
-| 集成 | Pixhawk, MAVLink | 准备飞控通信链路。 |
+| 可视化 | pyserial, matplotlib, Tkinter | 检查 UWB 串口、距离和位置数据。 |
+| 主项目中的接入实验 | Pixhawk, MAVLink | 将位置估计接入飞控实验。 |
 
 ## 项目结构
 
 ```text
 firmware/uwb/             UWB 测距和解算草图
-firmware/docking/         母机/子机 ESP-NOW 对接草图
-firmware/pixhawk/         Pixhawk TELEM 与 MAVLink 实验
-tools/visualization/      串口与 3D 可视化工具
-docs/                     接线说明、参考资料和图示
-archive/                  历史原型
+tools/visualization/      UWB 距离与位置查看器
+tools/requirements.txt    UWB 查看器依赖
+docs/                    UWB 接线说明和模块参考资料
+archive/prototypes/      早期 UWB 原型
 ```
 
 ## 项目状态
@@ -106,4 +121,4 @@ archive/                  历史原型
 
 ## 许可证
 
-当前仓库尚未声明项目级开源许可证；公开复用或分发前建议先补充 License。
+[MIT](LICENSE)。
